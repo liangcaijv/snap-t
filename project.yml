@@ -1,0 +1,43 @@
+name: ScreenTranslate
+options:
+  bundleIdPrefix: com.liangcai
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: "6TLD2A7Q9F"
+targets:
+  ScreenTranslate:
+    type: application
+    platform: macOS
+    sources:
+      - App
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.liangcai.ScreenTranslate
+        PRODUCT_NAME: ScreenTranslate
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: App/Info.plist
+        ENABLE_HARDENED_RUNTIME: NO
+  ScreenTranslateTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - ScreenTranslateTests
+    dependencies:
+      - target: ScreenTranslate
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.liangcai.ScreenTranslateTests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  ScreenTranslate:
+    build:
+      targets:
+        ScreenTranslate: all
+    test:
+      targets:
+        - name: ScreenTranslateTests
