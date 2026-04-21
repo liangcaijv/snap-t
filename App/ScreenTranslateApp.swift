@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @main
@@ -84,4 +85,8 @@ struct SettingsPresenter {
         activateApp()
         openSettings()
     }
+}
+
+extension NSUserInterfaceItemIdentifier {
+    static let settingsWindow = NSUserInterfaceItemIdentifier("settings-window")
 }

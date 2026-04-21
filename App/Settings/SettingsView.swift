@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SettingsView: View {
@@ -47,5 +48,24 @@ struct SettingsView: View {
             Spacer(minLength: 0)
         }
         .padding(24)
+        .background(SettingsWindowIdentifierView())
+    }
+}
+
+private struct SettingsWindowIdentifierView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        applyIdentifier(to: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        applyIdentifier(to: nsView)
+    }
+
+    private func applyIdentifier(to view: NSView) {
+        DispatchQueue.main.async {
+            view.window?.identifier = .settingsWindow
+        }
     }
 }

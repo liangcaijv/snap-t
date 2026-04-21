@@ -53,7 +53,7 @@ final class OverlayWindowController: ScreenRegionCapturing {
         )
 
         let window = CaptureOverlayWindow(
-            contentRect: screen.frame,
+            contentRect: SelectionGeometry.windowBounds(forScreenFrame: screen.frame),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false,
@@ -70,9 +70,10 @@ final class OverlayWindowController: ScreenRegionCapturing {
     }
 
     private func captureSelection(_ localSelection: CGRect, on screen: NSScreen) {
+        let localBounds = SelectionGeometry.windowBounds(forScreenFrame: screen.frame)
         let clampedLocalSelection = SelectionGeometry.clamp(
             localSelection,
-            to: CGRect(origin: .zero, size: screen.frame.size)
+            to: localBounds
         )
 
         guard SelectionGeometry.isValidSelection(clampedLocalSelection) else {
@@ -89,7 +90,10 @@ final class OverlayWindowController: ScreenRegionCapturing {
             return
         }
 
-        lastCaptureRect = clampedLocalSelection.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
+        lastCaptureRect = SelectionGeometry.globalAnchorRect(
+            forLocalSelection: clampedLocalSelection,
+            screenFrame: screen.frame
+        )
 
         dismiss()
 
@@ -104,7 +108,7 @@ final class OverlayWindowController: ScreenRegionCapturing {
         )
         let captureRect = SelectionGeometry.displayCaptureRect(
             forLocalSelection: clampedLocalSelection,
-            screenSize: screen.frame.size,
+            screenSize: localBounds.size,
             pixelSize: pixelSize
         )
 

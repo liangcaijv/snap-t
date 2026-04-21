@@ -68,7 +68,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, OCRReporting {
 
     private func restoreWindowsAfterCapture() {
         windowVisibilityController.restoreTrackedWindows()
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func hasConfiguredAPIKey() -> Bool {

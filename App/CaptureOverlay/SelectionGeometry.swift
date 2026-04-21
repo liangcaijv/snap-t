@@ -3,6 +3,10 @@ import CoreGraphics
 enum SelectionGeometry {
     static let minimumSelectionLength: CGFloat = 8
 
+    static func windowBounds(forScreenFrame screenFrame: CGRect) -> CGRect {
+        CGRect(origin: .zero, size: screenFrame.size)
+    }
+
     static func normalizedRect(from start: CGPoint, to end: CGPoint) -> CGRect {
         CGRect(
             x: min(start.x, end.x),
@@ -18,6 +22,13 @@ enum SelectionGeometry {
 
     static func isValidSelection(_ rect: CGRect) -> Bool {
         rect.width >= minimumSelectionLength && rect.height >= minimumSelectionLength
+    }
+
+    static func globalAnchorRect(
+        forLocalSelection selection: CGRect,
+        screenFrame: CGRect
+    ) -> CGRect {
+        selection.offsetBy(dx: screenFrame.minX, dy: screenFrame.minY)
     }
 
     static func displayCaptureRect(
