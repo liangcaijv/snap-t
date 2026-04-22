@@ -60,11 +60,10 @@ final class QwenMTTranslationService: TranslationService, Sendable {
         }
 
         guard (200..<300).contains(httpResponse.statusCode) else {
-            let message = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = Self.errorMessage(from: data)
             throw QwenMTTranslationServiceError.invalidStatusCode(
                 httpResponse.statusCode,
-                message: message?.isEmpty == false ? message : nil
+                message: message
             )
         }
 
@@ -78,6 +77,63 @@ final class QwenMTTranslationService: TranslationService, Sendable {
         }
 
         return translatedText
+    }
+
+    private static func errorMessage(from data: Data) -> String? {
+        let rawMessage = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let rawMessage, !rawMessage.isEmpty else {
+            return nil
+        }
+
+        if let jsonObject = try? JSONSerialization.jsonObject(with: data) {
+            if let extracted = extractMessage(from: jsonObject) {
+                return extracted
+            }
+        }
+
+        return rawMessage
+    }
+
+    private static func extractMessage(from value: Any) -> String? {
+        if let string = value as? String {
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                return nil
+            }
+
+            if let nestedData = trimmed.data(using: .utf8),
+               let nestedObject = try? JSONSerialization.jsonObject(with: nestedData),
+               let nestedMessage = extractMessage(from: nestedObject) {
+                return nestedMessage
+            }
+
+            return trimmed
+        }
+
+        if let dictionary = value as? [String: Any] {
+            if let message = dictionary["message"] as? String,
+               !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return message.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            for key in ["error", "error_message", "detail"] {
+                if let nested = dictionary[key],
+                   let nestedMessage = extractMessage(from: nested) {
+                    return nestedMessage
+                }
+            }
+        }
+
+        if let array = value as? [Any] {
+            for element in array {
+                if let message = extractMessage(from: element) {
+                    return message
+                }
+            }
+        }
+
+        return nil
     }
 }
 

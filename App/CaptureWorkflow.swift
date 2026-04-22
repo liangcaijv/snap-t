@@ -17,11 +17,52 @@ protocol ScreenRegionCapturing {
 }
 
 protocol TextRecognizing: Sendable {
-    func recognizeStrings(in image: CGImage) async throws -> [String]
+    func recognizeLayout(in image: CGImage) async throws -> OCRLayoutResult
+}
+
+extension TextRecognizing {
+    func recognizeStrings(in image: CGImage) async throws -> [String] {
+        try await recognizeLayout(in: image).lines.map(\.text)
+    }
+}
+
+struct TranslatedTextLine: Equatable {
+    let sourceText: String
+    let translatedText: String
+    let boundingBox: CGRect
+    let sourceTokens: [OCRTextToken]
+
+    init(
+        sourceText: String,
+        translatedText: String,
+        boundingBox: CGRect,
+        sourceTokens: [OCRTextToken] = []
+    ) {
+        self.sourceText = sourceText
+        self.translatedText = translatedText
+        self.boundingBox = boundingBox
+        self.sourceTokens = sourceTokens
+    }
+}
+
+struct TranslatedScreenshotResult: Equatable {
+    let image: CGImage
+    let lines: [TranslatedTextLine]
+
+    var imageSize: CGSize {
+        CGSize(width: image.width, height: image.height)
+    }
+
+    static func == (lhs: TranslatedScreenshotResult, rhs: TranslatedScreenshotResult) -> Bool {
+        lhs.image.width == rhs.image.width
+            && lhs.image.height == rhs.image.height
+            && lhs.lines == rhs.lines
+    }
 }
 
 enum OCRReport: Equatable {
     case translated(String, imagePath: String?)
+    case translatedScreenshot(TranslatedScreenshotResult, imagePath: String?)
     case noText(imagePath: String?)
     case failure(String, imagePath: String?)
     case cancelled
@@ -100,18 +141,20 @@ final class CaptureWorkflow {
         let imagePath = debugStore.persist(image)
 
         do {
-            let strings = try await recognizer.recognizeStrings(in: image)
-            guard !strings.isEmpty else {
+            let layout = try await recognizer.recognizeLayout(in: image)
+            guard !layout.lines.isEmpty else {
                 reporter.report(.noText(imagePath: imagePath))
                 return
             }
 
             onBeginTranslation()
-            let translatedText = try await translator.translate(
-                strings.joined(separator: "\n"),
-                targetLanguageCode: targetLanguageCodeProvider()
+            let translatedLines = try await translate(layout.lines)
+            reporter.report(
+                .translatedScreenshot(
+                    TranslatedScreenshotResult(image: image, lines: translatedLines),
+                    imagePath: imagePath
+                )
             )
-            reporter.report(.translated(translatedText, imagePath: imagePath))
         } catch let error as OCRServiceError where error == .noTextRecognized {
             reporter.report(.noText(imagePath: imagePath))
         } catch let error as QwenMTTranslationServiceError {
@@ -119,6 +162,28 @@ final class CaptureWorkflow {
         } catch {
             reporter.report(.failure(error.localizedDescription, imagePath: imagePath))
         }
+    }
+
+    private func translate(_ lines: [OCRTextLine]) async throws -> [TranslatedTextLine] {
+        var translatedLines: [TranslatedTextLine] = []
+        translatedLines.reserveCapacity(lines.count)
+
+        for line in lines {
+            let translatedText = try await translator.translate(
+                line.text,
+                targetLanguageCode: targetLanguageCodeProvider()
+            )
+            translatedLines.append(
+                TranslatedTextLine(
+                    sourceText: line.text,
+                    translatedText: translatedText,
+                    boundingBox: line.boundingBox,
+                    sourceTokens: line.tokens
+                )
+            )
+        }
+
+        return translatedLines
     }
 
     private func message(for error: QwenMTTranslationServiceError) -> String {

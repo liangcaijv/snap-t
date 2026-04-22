@@ -56,6 +56,10 @@ final class TranslationOverlayController {
         update(state: .translated(text))
     }
 
+    func showTranslatedScreenshot(_ result: TranslatedScreenshotResult) {
+        update(state: .translatedScreenshot(result))
+    }
+
     func showFailure(_ message: String) {
         update(state: .failure(message))
     }

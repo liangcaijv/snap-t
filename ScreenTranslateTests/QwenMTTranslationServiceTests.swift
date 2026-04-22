@@ -158,7 +158,42 @@ final class QwenMTTranslationServiceTests: XCTestCase {
         } catch {
             XCTAssertEqual(
                 error as? QwenMTTranslationServiceError,
-                .invalidStatusCode(401, message: #"{"message":"invalid key"}"#)
+                .invalidStatusCode(401, message: "invalid key")
+            )
+        }
+    }
+
+    func test嵌套错误响应会提取可读message() async {
+        let errorData = #"""
+        {
+          "error": "{\"message\":\"You have exceeded your current request limit. For details, see: https://help.aliyun.com/zh/model-studio/error-code#rate-limit\",\"type\":\"limit_requests\",\"param\":null,\"code\":\"limit_requests\"}",
+          "request_id": "0ccefad2-48ea-9964-9872"
+        }
+        """#.data(using: .utf8)!
+        let service = QwenMTTranslationService(
+            session: StubHTTPSession(
+                data: errorData,
+                response: HTTPURLResponse(
+                    url: Self.endpoint,
+                    statusCode: 429,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+            ),
+            apiKeyProvider: { "sk-test" },
+            baseURL: Self.endpoint
+        )
+
+        do {
+            _ = try await service.translate("你好", targetLanguageCode: "en")
+            XCTFail("Expected HTTP status error")
+        } catch {
+            XCTAssertEqual(
+                error as? QwenMTTranslationServiceError,
+                .invalidStatusCode(
+                    429,
+                    message: "You have exceeded your current request limit. For details, see: https://help.aliyun.com/zh/model-studio/error-code#rate-limit"
+                )
             )
         }
     }

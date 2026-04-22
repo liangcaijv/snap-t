@@ -5,8 +5,20 @@ import XCTest
 @MainActor
 final class CaptureWorkflowTests: XCTestCase {
     func test成功截图后会把翻译文本交给reporter() async {
-        let recognizer = StubRecognizer(result: .success(["Hello", "World"]))
-        let translator = StubTranslator(result: .success("你好，世界"))
+        let recognizer = StubRecognizer(
+            result: .success(
+                OCRLayoutResult(
+                    lines: [
+                        OCRTextLine(text: "Hello", boundingBox: CGRect(x: 0.1, y: 0.8, width: 0.2, height: 0.1)),
+                        OCRTextLine(text: "World", boundingBox: CGRect(x: 0.1, y: 0.6, width: 0.25, height: 0.1)),
+                    ]
+                )
+            )
+        )
+        let translator = StubTranslator(results: [
+            "Hello": .success("你好"),
+            "World": .success("世界"),
+        ])
         let reporter = RecordingReporter()
         let workflow = CaptureWorkflow(
             capturer: StubCapturer(),
@@ -16,16 +28,45 @@ final class CaptureWorkflowTests: XCTestCase {
             debugStore: StubDebugStore(path: "/tmp/ocr-debug.png"),
             targetLanguageCodeProvider: { "zh" }
         )
+        let image = makeImage()
 
-        await workflow.handleCaptureResult(.success(CapturedRegion(image: makeImage())))
+        await workflow.handleCaptureResult(.success(CapturedRegion(image: image)))
 
-        XCTAssertEqual(translator.requests, [TranslationRequestRecord(text: "Hello\nWorld", targetLanguageCode: "zh")])
-        XCTAssertEqual(reporter.reports, [.translated("你好，世界", imagePath: "/tmp/ocr-debug.png")])
+        XCTAssertEqual(
+            translator.requests,
+            [
+                TranslationRequestRecord(text: "Hello", targetLanguageCode: "zh"),
+                TranslationRequestRecord(text: "World", targetLanguageCode: "zh"),
+            ]
+        )
+        XCTAssertEqual(
+            reporter.reports,
+            [
+                .translatedScreenshot(
+                    TranslatedScreenshotResult(
+                        image: image,
+                        lines: [
+                            TranslatedTextLine(
+                                sourceText: "Hello",
+                                translatedText: "你好",
+                                boundingBox: CGRect(x: 0.1, y: 0.8, width: 0.2, height: 0.1)
+                            ),
+                            TranslatedTextLine(
+                                sourceText: "World",
+                                translatedText: "世界",
+                                boundingBox: CGRect(x: 0.1, y: 0.6, width: 0.25, height: 0.1)
+                            ),
+                        ]
+                    ),
+                    imagePath: "/tmp/ocr-debug.png"
+                ),
+            ]
+        )
     }
 
     func testOCR没有识别到文本时会上报noText() async {
         let recognizer = StubRecognizer(result: .failure(OCRServiceError.noTextRecognized))
-        let translator = StubTranslator(result: .success("unused"))
+        let translator = StubTranslator(results: [:])
         let reporter = RecordingReporter()
         let workflow = CaptureWorkflow(
             capturer: StubCapturer(),
@@ -43,8 +84,8 @@ final class CaptureWorkflowTests: XCTestCase {
     }
 
     func test权限缺失时会上报失败() async {
-        let recognizer = StubRecognizer(result: .success(["unused"]))
-        let translator = StubTranslator(result: .success("unused"))
+        let recognizer = StubRecognizer(result: .success(OCRLayoutResult(lines: [])))
+        let translator = StubTranslator(results: [:])
         let reporter = RecordingReporter()
         let workflow = CaptureWorkflow(
             capturer: StubCapturer(),
@@ -59,8 +100,12 @@ final class CaptureWorkflowTests: XCTestCase {
     }
 
     func test默认不会持久化截图到磁盘() async {
-        let recognizer = StubRecognizer(result: .success(["Hello"]))
-        let translator = StubTranslator(result: .success("你好"))
+        let recognizer = StubRecognizer(
+            result: .success(
+                OCRLayoutResult(lines: [OCRTextLine(text: "Hello", boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1))])
+            )
+        )
+        let translator = StubTranslator(results: ["Hello": .success("你好")])
         let reporter = RecordingReporter()
         let workflow = CaptureWorkflow(
             capturer: StubCapturer(),
@@ -68,15 +113,31 @@ final class CaptureWorkflowTests: XCTestCase {
             translator: translator,
             reporter: reporter
         )
+        let image = makeImage()
 
-        await workflow.handleCaptureResult(.success(CapturedRegion(image: makeImage())))
+        await workflow.handleCaptureResult(.success(CapturedRegion(image: image)))
 
-        XCTAssertEqual(reporter.reports, [.translated("你好", imagePath: nil)])
+        XCTAssertEqual(
+            reporter.reports,
+            [
+                .translatedScreenshot(
+                    TranslatedScreenshotResult(
+                        image: image,
+                        lines: [TranslatedTextLine(sourceText: "Hello", translatedText: "你好", boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1))]
+                    ),
+                    imagePath: nil
+                ),
+            ]
+        )
     }
 
     func test缺少APIKey时会上报配置失败() async {
-        let recognizer = StubRecognizer(result: .success(["Hello"]))
-        let translator = StubTranslator(result: .failure(QwenMTTranslationServiceError.missingAPIKey))
+        let recognizer = StubRecognizer(
+            result: .success(
+                OCRLayoutResult(lines: [OCRTextLine(text: "Hello", boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1))])
+            )
+        )
+        let translator = StubTranslator(results: ["Hello": .failure(QwenMTTranslationServiceError.missingAPIKey)])
         let reporter = RecordingReporter()
         let workflow = CaptureWorkflow(
             capturer: StubCapturer(),
@@ -95,8 +156,12 @@ final class CaptureWorkflowTests: XCTestCase {
     }
 
     func test翻译失败时会上报失败() async {
-        let recognizer = StubRecognizer(result: .success(["Hello"]))
-        let translator = StubTranslator(result: .failure(QwenMTTranslationServiceError.invalidStatusCode(429, message: "rate limited")))
+        let recognizer = StubRecognizer(
+            result: .success(
+                OCRLayoutResult(lines: [OCRTextLine(text: "Hello", boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1))])
+            )
+        )
+        let translator = StubTranslator(results: ["Hello": .failure(QwenMTTranslationServiceError.invalidStatusCode(429, message: "rate limited"))])
         let reporter = RecordingReporter()
         let workflow = CaptureWorkflow(
             capturer: StubCapturer(),
@@ -120,13 +185,13 @@ private final class StubCapturer: ScreenRegionCapturing {
 }
 
 private final class StubRecognizer: TextRecognizing, @unchecked Sendable {
-    private let result: Result<[String], Error>
+    private let result: Result<OCRLayoutResult, Error>
 
-    init(result: Result<[String], Error>) {
+    init(result: Result<OCRLayoutResult, Error>) {
         self.result = result
     }
 
-    func recognizeStrings(in _: CGImage) async throws -> [String] {
+    func recognizeLayout(in _: CGImage) async throws -> OCRLayoutResult {
         try result.get()
     }
 }
@@ -137,18 +202,18 @@ private struct TranslationRequestRecord: Equatable {
 }
 
 private final class StubTranslator: TranslationService, @unchecked Sendable {
-    private let result: Result<String, Error>
+    private let results: [String: Result<String, Error>]
     private(set) var requests: [TranslationRequestRecord] = []
 
-    init(result: Result<String, Error>) {
-        self.result = result
+    init(results: [String: Result<String, Error>]) {
+        self.results = results
     }
 
     func translate(_ text: String, targetLanguageCode: String) async throws -> String {
         requests.append(
             TranslationRequestRecord(text: text, targetLanguageCode: targetLanguageCode)
         )
-        return try result.get()
+        return try (results[text] ?? .failure(QwenMTTranslationServiceError.emptyResponseContent)).get()
     }
 }
 

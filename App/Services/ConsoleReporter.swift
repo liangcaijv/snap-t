@@ -11,6 +11,13 @@ struct ConsoleReporter: OCRReporting {
             print("=== Translation Result ===")
             print(text)
             print("=== End Translation Result ===")
+        case let .translatedScreenshot(result, _):
+            print("=== In-Place Translation Result ===")
+            print("image size: \(Int(result.imageSize.width))x\(Int(result.imageSize.height))")
+            for line in result.lines {
+                print(line.translatedText)
+            }
+            print("=== End In-Place Translation Result ===")
         case .noText:
             print("No text recognized.")
         case let .failure(message, _):
@@ -25,6 +32,8 @@ private extension OCRReport {
     var imagePath: String? {
         switch self {
         case let .translated(_, imagePath):
+            return imagePath
+        case let .translatedScreenshot(_, imagePath):
             return imagePath
         case let .noText(imagePath):
             return imagePath

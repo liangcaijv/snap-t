@@ -3,6 +3,56 @@ import XCTest
 @testable import ScreenTranslate
 
 final class TranslationOverlayLayoutTests: XCTestCase {
+    func test会把归一化文本框转换为图片坐标() {
+        let rect = TranslatedScreenshotLayout.imageRect(
+            for: CGRect(x: 0.1, y: 0.6, width: 0.3, height: 0.2),
+            imageSize: CGSize(width: 1000, height: 500)
+        )
+
+        XCTAssertEqual(rect, CGRect(x: 100, y: 100, width: 300, height: 100))
+    }
+
+    func test会为文本区域生成带内边距的覆盖框() {
+        let coverRect = TranslatedScreenshotLayout.coverRect(
+            for: CGRect(x: 100, y: 80, width: 200, height: 40),
+            padding: 6
+        )
+
+        XCTAssertEqual(coverRect, CGRect(x: 94, y: 77, width: 212, height: 46))
+    }
+
+    func test会在目标区域内选择合适字号() {
+        let large = TranslatedScreenshotLayout.fittedFontSize(
+            for: "Short",
+            in: CGRect(x: 0, y: 0, width: 180, height: 28)
+        )
+        let small = TranslatedScreenshotLayout.fittedFontSize(
+            for: "A much longer translated sentence that has to wrap into the original area",
+            in: CGRect(x: 0, y: 0, width: 180, height: 28)
+        )
+
+        XCTAssertGreaterThanOrEqual(large, small)
+        XCTAssertGreaterThanOrEqual(small, 8)
+    }
+
+    func test图内回填按整行排版而不是token拆分() {
+        let placement = TranslatedScreenshotLayout.linePlacement(
+            for: TranslatedTextLine(
+                sourceText: "Open tabs",
+                translatedText: "打开标签页",
+                boundingBox: CGRect(x: 0.1, y: 0.6, width: 0.3, height: 0.2),
+                sourceTokens: [
+                    OCRTextToken(text: "Open", boundingBox: CGRect(x: 0.1, y: 0.6, width: 0.12, height: 0.2)),
+                    OCRTextToken(text: "tabs", boundingBox: CGRect(x: 0.24, y: 0.6, width: 0.16, height: 0.2)),
+                ]
+            ),
+            imageSize: CGSize(width: 1000, height: 500)
+        )
+
+        XCTAssertEqual(placement.text, "打开标签页")
+        XCTAssertEqual(placement.rect, CGRect(x: 100, y: 100, width: 300, height: 100))
+    }
+
     func test初始frame会锚定到截图区域并保持最小尺寸() {
         let frame = TranslationOverlayLayout.initialFrame(
             for: CGRect(x: 100, y: 200, width: 80, height: 40)

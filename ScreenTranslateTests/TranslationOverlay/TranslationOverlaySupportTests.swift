@@ -91,6 +91,27 @@ final class TranslationOverlaySupportTests: XCTestCase {
         controller.showNoText()
         XCTAssertEqual(controller.state, .noText)
     }
+
+    func test更新为图内回填结果时会刷新到译图状态() {
+        let monitor = RecordingClickMonitor()
+        let controller = TranslationOverlayController(clickMonitor: monitor)
+        defer { controller.dismiss() }
+        controller.presentLoading(anchoredTo: CGRect(x: 100, y: 200, width: 180, height: 120))
+
+        let result = TranslatedScreenshotResult(
+            image: makeImage(),
+            lines: [
+                TranslatedTextLine(
+                    sourceText: "Hello",
+                    translatedText: "你好",
+                    boundingBox: CGRect(x: 0.1, y: 0.8, width: 0.2, height: 0.1)
+                ),
+            ]
+        )
+        controller.showTranslatedScreenshot(result)
+
+        XCTAssertEqual(controller.state, .translatedScreenshot(result))
+    }
 }
 
 private final class RecordingClickMonitor: TranslationOverlayClickMonitoring {
@@ -123,4 +144,20 @@ private final class RecordingClickMonitor: TranslationOverlayClickMonitoring {
     func fireLocalClick(at point: CGPoint) {
         localHandler?(point)
     }
+}
+
+private func makeImage() -> CGImage {
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let context = CGContext(
+        data: nil,
+        width: 240,
+        height: 120,
+        bitsPerComponent: 8,
+        bytesPerRow: 240 * 4,
+        space: colorSpace,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )!
+    context.setFillColor(NSColor.white.cgColor)
+    context.fill(CGRect(x: 0, y: 0, width: 240, height: 120))
+    return context.makeImage()!
 }

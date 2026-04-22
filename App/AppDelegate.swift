@@ -53,6 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, OCRReporting {
         switch report {
         case let .translated(text, _):
             translationOverlayController.showTranslation(text)
+        case let .translatedScreenshot(result, _):
+            translationOverlayController.showTranslatedScreenshot(result)
         case .noText:
             translationOverlayController.showNoText()
         case let .failure(message, _):
