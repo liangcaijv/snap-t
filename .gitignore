@@ -1,0 +1,5 @@
+.DS_Store
+docs/plans/
+xcuserdata/
+*.xcuserdatad/
+*.xcuserstate
